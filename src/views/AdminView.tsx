@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   TrendingUp, ShoppingBag, Users, Utensils, Tag, Plus, Edit2, Trash2,
-  CheckCircle, AlertCircle, Clock, Truck, ChefHat, RefreshCw, X, Shield, Eye, MapPin
+  CheckCircle, AlertCircle, Clock, Truck, ChefHat, RefreshCw, X, Shield, Eye, MapPin,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { AdminMetrics, Order, FoodItem, Category, Coupon } from '../types';
+import { AdminMetrics, AdminStatistics, Order, FoodItem, Category, Coupon } from '../types';
 import { api } from '../services/api';
+import { OrderStatisticsDashboard } from '../components/admin/OrderStatisticsDashboard';
 
 interface AdminViewProps {
   onShowToast: (msg: string) => void;
@@ -13,7 +15,11 @@ interface AdminViewProps {
 
 export const AdminView: React.FC<AdminViewProps> = ({ onShowToast }) => {
   const { isAdmin, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'metrics' | 'orders' | 'menu' | 'categories' | 'coupons' | 'customers'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'statistics' | 'orders' | 'menu' | 'categories' | 'coupons' | 'customers'>('metrics');
+
+  // Statistics
+  const [statistics, setStatistics] = useState<AdminStatistics | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // Metrics
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
@@ -43,6 +49,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onShowToast }) => {
 
   // Customers
   const [customers, setCustomers] = useState<any[]>([]);
+
+  const loadStatistics = async () => {
+    setLoadingStats(true);
+    try {
+      const res = await api.getAdminStatistics();
+      setStatistics(res);
+    } catch (e) {
+      console.error('Failed to load statistics:', e);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const loadMetrics = async () => {
     try {
@@ -98,11 +116,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onShowToast }) => {
   useEffect(() => {
     if (!isAdmin) return;
     loadMetrics();
+    loadStatistics();
     loadOrders();
     loadMenu();
     loadCoupons();
     loadCustomers();
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (activeTab === 'statistics') {
+      loadStatistics();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'orders') {
@@ -243,10 +268,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onShowToast }) => {
           <button
             onClick={() => {
               loadMetrics();
+              loadStatistics();
               loadOrders();
               loadMenu();
               loadCoupons();
-              onShowToast('Console data refreshed.');
+              onShowToast('Console & statistics refreshed.');
             }}
             className="px-4 py-2.5 glass-btn-secondary text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
           >
@@ -266,7 +292,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onShowToast }) => {
               : 'glass-btn-secondary text-slate-300 hover:text-white'
           }`}
         >
-          Overview & Sales
+          Overview & Live Ops
+        </button>
+
+        <button
+          onClick={() => setActiveTab('statistics')}
+          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+            activeTab === 'statistics'
+              ? 'glass-btn-primary border-white/20'
+              : 'glass-btn-secondary text-slate-300 hover:text-white'
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5 text-orange-400" />
+          <span>Order Statistics (7-Days)</span>
+          <span className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-mono font-black">
+            Recharts
+          </span>
         </button>
 
         <button
@@ -469,7 +510,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onShowToast }) => {
               </div>
             </div>
           </div>
+
+          {/* Integrated Order Statistics Dashboard in Overview */}
+          <div className="pt-4">
+            <OrderStatisticsDashboard
+              stats={statistics}
+              loading={loadingStats}
+              onRefresh={loadStatistics}
+            />
+          </div>
         </div>
+      )}
+
+      {/* TAB: DEDICATED ORDER STATISTICS (RECHARTS) */}
+      {activeTab === 'statistics' && (
+        <OrderStatisticsDashboard
+          stats={statistics}
+          loading={loadingStats}
+          onRefresh={loadStatistics}
+        />
       )}
 
       {/* TAB 2: ORDERS MANAGEMENT */}

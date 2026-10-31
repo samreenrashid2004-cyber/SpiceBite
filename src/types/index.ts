@@ -134,3 +134,53 @@ export interface AdminMetrics {
   totalMenuItems: number;
   outOfStockItems: number;
 }
+
+export interface DailySalesStat {
+  date: string;
+  dayName: string;
+  displayDate: string;
+  sales: number;
+  orders: number;
+  cancelled: number;
+  avgOrderValue: number;
+}
+
+export interface HourlyStat {
+  hour: number;
+  label: string;
+  orders: number;
+  sales: number;
+  isPeak: boolean;
+  peakType?: 'lunch' | 'dinner' | null;
+}
+
+export interface CategoryStat {
+  name: string;
+  sales: number;
+  itemsSold: number;
+  percentage: number;
+}
+
+export interface PaymentStat {
+  method: string;
+  count: number;
+  total: number;
+}
+
+export interface AdminStatistics {
+  salesTrends: DailySalesStat[];
+  hourlyTrends: HourlyStat[];
+  categoryBreakdown: CategoryStat[];
+  paymentDistribution: PaymentStat[];
+  summary: {
+    totalSales7d: number;
+    totalOrders7d: number;
+    avgDailySales: number;
+    avgOrderValue: number;
+    peakHour: string;
+    peakHourOrders: number;
+    bestDay: string;
+    bestDaySales: number;
+    growthVsLastWeek: number;
+  };
+}

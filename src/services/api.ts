@@ -1,3 +1,5 @@
+import { AdminStatistics } from '../types';
+
 const API_BASE = '/api';
 
 export function getToken(): string | null {
@@ -96,6 +98,7 @@ export const api = {
 
   // Admin
   getAdminMetrics: () => request<{ metrics: any; recentOrders: any[]; topItems: any[] }>('/admin/metrics'),
+  getAdminStatistics: () => request<AdminStatistics>('/admin/statistics'),
   getAdminOrders: (params: Record<string, any> = {}) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {

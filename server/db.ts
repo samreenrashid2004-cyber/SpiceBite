@@ -720,8 +720,150 @@ function seedInitialData() {
     }
   }
 
+  // Seed realistic historical orders for past 7 days if order volume is low
+  try {
+    const currentOrderCount = (db.prepare('SELECT count(*) as count FROM orders').get() as { count: number }).count;
+    if (currentOrderCount < 20) {
+      const foodList = db.prepare('SELECT id, name, price, discount_price FROM food_items WHERE is_available = 1').all() as any[];
+      if (foodList.length > 0) {
+        const customers = [
+          { name: 'Hamza Khan', phone: '+92 321 9876543', email: 'customer@spicebite.pk', area: 'Sector Z, Phase 3, DHA, Lahore' },
+          { name: 'Ayesha Tariq', phone: '+92 300 4567890', email: 'ayesha.t@gmail.com', area: 'Block B, Gulberg III, Lahore' },
+          { name: 'Bilal Ahmed', phone: '+92 333 1122334', email: 'bilal.ahmed@yahoo.com', area: 'Main Boulevard, MM Alam Road, Lahore' },
+          { name: 'Zainab Fatima', phone: '+92 301 5566778', email: 'zainab.f@outlook.com', area: 'Model Town, Block C, Lahore' },
+          { name: 'Usman Ali', phone: '+92 322 8899001', email: 'usman.ali88@gmail.com', area: 'Phase 5, DHA, Lahore' },
+          { name: 'Sana Javed', phone: '+92 345 6677889', email: 'sana.javed@gmail.com', area: 'Johar Town, Phase 1, Lahore' },
+          { name: 'Fahad Sheikh', phone: '+92 302 9988776', email: 'fahad.s@gmail.com', area: 'Cantt Officers Colony, Lahore' }
+        ];
+
+        const paymentMethods = ['ONLINE_UPI', 'COD', 'ONLINE_CARD', 'ONLINE_UPI'];
+        const riders = [
+          { name: 'Tariq Mehmood', phone: '+92 301 2345678' },
+          { name: 'Hamza Malik', phone: '+92 300 8765432' },
+          { name: 'Rashid Minhas', phone: '+92 303 5544332' }
+        ];
+
+        const now = new Date();
+        const daysPattern = [
+          { daysAgo: 6, count: 6 },
+          { daysAgo: 5, count: 7 },
+          { daysAgo: 4, count: 8 },
+          { daysAgo: 3, count: 10 },
+          { daysAgo: 2, count: 12 },
+          { daysAgo: 1, count: 14 },
+          { daysAgo: 0, count: 9 },
+        ];
+
+        // Hours biased towards Lunch (12:00 - 15:00) and Dinner rush (19:00 - 23:00)
+        const hourPool = [12, 13, 13, 14, 14, 15, 17, 18, 19, 19, 20, 20, 20, 21, 21, 22, 22, 23];
+
+        let orderSeq = 100;
+        for (const day of daysPattern) {
+          for (let i = 0; i < day.count; i++) {
+            orderSeq++;
+            const cust = customers[(orderSeq + i) % customers.length];
+            const paymentMethod = paymentMethods[(orderSeq * 3) % paymentMethods.length];
+            const rider = riders[i % riders.length];
+            const hour = hourPool[(orderSeq + i) % hourPool.length];
+            const minute = (orderSeq * 7) % 55;
+
+            const orderDate = new Date(now);
+            orderDate.setDate(now.getDate() - day.daysAgo);
+            orderDate.setHours(hour, minute, (orderSeq * 13) % 59);
+            const dateStr = orderDate.toISOString().replace('T', ' ').substring(0, 19);
+
+            const numItems = (orderSeq % 3) + 1;
+            const selectedItems: any[] = [];
+            for (let j = 0; j < numItems; j++) {
+              const food = foodList[(orderSeq + j * 4) % foodList.length];
+              selectedItems.push({
+                food,
+                qty: (j === 0 && (orderSeq % 4 === 0)) ? 2 : 1
+              });
+            }
+
+            const subtotal = selectedItems.reduce((acc, it) => acc + (it.food.discount_price || it.food.price) * it.qty, 0);
+            const discount = subtotal > 400 ? (orderSeq % 2 === 0 ? 50 : 0) : 0;
+            const deliveryFee = subtotal > 999 ? 0 : 40;
+            const tax = Math.round((subtotal - discount) * 0.05 * 10) / 10;
+            const totalAmount = Math.round((subtotal - discount + deliveryFee + tax) * 10) / 10;
+
+            const isRecentToday = day.daysAgo === 0 && i >= day.count - 3;
+            const status = day.daysAgo > 0 ? (i === 1 ? 'CANCELLED' : 'DELIVERED') : (isRecentToday ? 'PREPARING' : 'DELIVERED');
+            const paymentStatus = status === 'CANCELLED' ? 'FAILED' : (paymentMethod === 'COD' && status !== 'DELIVERED' ? 'PENDING' : 'PAID');
+
+            const orderNum = `SB-${90000 + orderSeq}`;
+
+            const res = db.prepare(`
+              INSERT INTO orders (
+                order_number, user_id, customer_name, customer_phone, customer_email,
+                delivery_address, subtotal, discount_amount, coupon_code, delivery_fee,
+                tax_amount, total_amount, payment_method, payment_status, order_status,
+                delivery_notes, estimated_delivery_time, rider_name, rider_phone, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              orderNum,
+              1,
+              cust.name,
+              cust.phone,
+              cust.email,
+              cust.area,
+              subtotal,
+              discount,
+              discount > 0 ? 'DESI50' : null,
+              deliveryFee,
+              tax,
+              totalAmount,
+              paymentMethod,
+              paymentStatus,
+              status,
+              'Extra mint chutney and tissues please',
+              '25-35 mins',
+              rider.name,
+              rider.phone,
+              dateStr,
+              dateStr
+            );
+
+            for (const it of selectedItems) {
+              const price = it.food.discount_price || it.food.price;
+              db.prepare(`
+                INSERT INTO order_items (order_id, food_item_id, item_name, item_price, quantity, total_price)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `).run(res.lastInsertRowid, it.food.id, it.food.name, price, it.qty, price * it.qty);
+            }
+          }
+        }
+      }
+    }
+  } catch (seedErr) {
+    console.error('Order history seed notice:', seedErr);
+  }
+
   // Safe migration for existing DB data to ensure 100% Pakistan business identity
   try {
+    const salt = bcrypt.genSaltSync(10);
+    const adminHash = bcrypt.hashSync('Admin@123', salt);
+    const customerHash = bcrypt.hashSync('Customer@123', salt);
+
+    db.prepare(`
+      UPDATE users 
+      SET email = 'admin@spicebite.pk',
+          name = 'SpiceBite Admin',
+          password_hash = ?,
+          phone = '+92 300 1234567'
+      WHERE role = 'admin' OR email = 'admin@masalamunch.com'
+    `).run(adminHash);
+
+    db.prepare(`
+      UPDATE users 
+      SET email = 'customer@spicebite.pk',
+          name = 'Hamza Khan',
+          password_hash = ?,
+          phone = '+92 321 9876543'
+      WHERE email = 'rahul@example.com' OR (role = 'customer' AND email NOT LIKE '%@spicebite.pk%')
+    `).run(customerHash);
+
     db.prepare(`
       UPDATE addresses 
       SET street_address = 'House 14-B, Sector Z, Phase 3, DHA',
