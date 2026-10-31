@@ -1,0 +1,8 @@
+{
+  "name": "MasalaMunch --  Cravings Made Delicious. Delivered With Love!",
+  "description": "SpiceBite is a modern, full-stack Indian fast food ordering web application designed to provide customers with a smooth and convenient online food ordering experience. Users can explore a wide variety of Indian fast food items, including burgers, pizzas, biryani, momos, shawarma, sandwiches, fries, and traditional street food.\n\nThe application includes user registration and login, dynamic food menus, search and category filters, shopping cart, secure checkout, order tracking, and customer profiles. It also features a powerful admin dashboard where administrators can manage food products, categories, customers, orders, prices, and discounts.\n\nBuilt using HTML, CSS, JavaScript, Node.js, Express.js, and SQLite, SpiceBite provides a responsive user interface with functional backend services and database integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
